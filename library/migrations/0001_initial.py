@@ -47,9 +47,9 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('title', models.CharField(max_length=200)),
                 ('publish_date', models.DateField(blank=True, null=True)),
-                ('author', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='library.author')),
-                ('category', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='library.category')),
-                ('publisher', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='library.publisher')),
+                ('author', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='librarys.author')),
+                ('category', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='librarys.category')),
+                ('publisher', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='librarys.publisher')),
             ],
         ),
         migrations.CreateModel(
@@ -58,8 +58,8 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('borrow_date', models.DateTimeField(auto_now_add=True)),
                 ('return_date', models.DateTimeField(blank=True, null=True)),
-                ('book', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='library.book')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='library.user')),
+                ('book', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='librarys.book')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='librarys.user')),
             ],
         ),
     ]
