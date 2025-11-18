@@ -1,193 +1,146 @@
 // visualization.js
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('智慧图书馆管理系统已加载');
+    console.log('图书馆管理系统已加载');
 
-    // 1. 统计卡片点击效果
-    const statCards = document.querySelectorAll('.stat-card');
-    statCards.forEach(card => {
-        card.addEventListener('click', function() {
-            // 添加点击动画
-            this.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                this.style.transform = '';
-            }, 150);
-
-            // 显示统计信息（这里可以添加更多功能）
-            const number = this.querySelector('.stat-number').textContent;
-            const label = this.querySelector('.stat-label').textContent;
-            console.log(`${label}: ${number}`);
-        });
-    });
-
-    // 2. 数字计数动画
+    // 1. 数字计数动画
     function animateNumbers() {
         const numberElements = document.querySelectorAll('.stat-number');
         numberElements.forEach(element => {
-            const target = parseInt(element.textContent) || 0;
+            const finalValue = parseInt(element.textContent) || 0;
             let current = 0;
-            const increment = target / 50; // 控制动画速度
+            const increment = finalValue / 50;
+            const duration = 2000;
+
             const timer = setInterval(() => {
                 current += increment;
-                if (current >= target) {
-                    current = target;
+                if (current >= finalValue) {
+                    element.textContent = finalValue.toLocaleString();
                     clearInterval(timer);
+                } else {
+                    element.textContent = Math.floor(current).toLocaleString();
                 }
-                element.textContent = Math.floor(current).toLocaleString();
-            }, 30);
+            }, duration / 50);
         });
     }
 
-    // 页面加载后执行数字动画
+    // 延迟执行数字动画
     setTimeout(animateNumbers, 500);
 
-    // 3. 滚动动画效果
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-    };
-
-    const observer = new IntersectionObserver(function(entries) {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
-            }
-        });
-    }, observerOptions);
-
-    // 为所有卡片添加观察
-    const cards = document.querySelectorAll('.section-card, .stat-card');
+    // 2. 卡片悬停效果
+    const cards = document.querySelectorAll('.stat-card, .content-card');
     cards.forEach(card => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-        observer.observe(card);
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+            this.style.boxShadow = '0 5px 15px rgba(0,0,0,0.2)';
+        });
+
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+        });
     });
 
-    // 4. 实时时钟
-    function updateClock() {
-        const now = new Date();
-        const timeString = now.toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            weekday: 'long',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
+    // 3. 列表项点击效果
+    const listItems = document.querySelectorAll('.list-item');
+    listItems.forEach(item => {
+        item.addEventListener('click', function() {
+            this.style.background = '#f0f8ff';
+            setTimeout(() => {
+                this.style.background = '';
+            }, 300);
         });
+    });
 
-        // 在页脚显示时间
-        const footer = document.querySelector('footer p');
-        if (footer) {
-            const originalText = footer.innerHTML;
-            footer.innerHTML = `📅 ${timeString} | ${originalText}`;
+    // 4. 登录注册按钮功能
+    function setupAuthButtons() {
+        const loginBtn = document.querySelector('.btn-outline');
+        const registerBtn = document.querySelector('.btn-primary');
+
+        if (loginBtn) {
+            loginBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                alert('登录功能开发中...');
+            });
+        }
+
+        if (registerBtn) {
+            registerBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                alert('注册功能开发中...');
+            });
         }
     }
 
-    // 每秒更新时钟
-    setInterval(updateClock, 1000);
-    updateClock(); // 立即执行一次
-
-    // 5. 搜索功能（简单演示）
+    // 5. 搜索功能（简化版）
     function setupSearch() {
         // 创建搜索框
-        const header = document.querySelector('header');
         const searchHTML = `
-            <div style="margin-top: 20px;">
-                <input type="text" id="bookSearch" placeholder="🔍 搜索图书..."
-                       style="padding: 10px; width: 300px; max-width: 100%;
-                              border: none; border-radius: 25px; text-align: center;">
+            <div class="search-container" style="margin-top: 1rem;">
+                <input type="text" id="globalSearch" placeholder="搜索图书、作者..."
+                       style="padding: 0.5rem; width: 100%; max-width: 300px;
+                              border: 1px solid #ddd; border-radius: 4px;">
             </div>
         `;
-        header.insertAdjacentHTML('beforeend', searchHTML);
 
-        const searchInput = document.getElementById('bookSearch');
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const bookItems = document.querySelectorAll('.book-item');
+        const welcomeSection = document.querySelector('.welcome-section');
+        welcomeSection.insertAdjacentHTML('beforeend', searchHTML);
 
-            bookItems.forEach(item => {
-                const title = item.querySelector('.book-title').textContent.toLowerCase();
-                if (title.includes(searchTerm)) {
-                    item.style.display = 'block';
-                    item.style.animation = 'fadeIn 0.3s ease';
+        const searchInput = document.getElementById('globalSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                highlightSearchResults(searchTerm);
+            });
+        }
+    }
+
+    function highlightSearchResults(term) {
+        const listItems = document.querySelectorAll('.list-item');
+
+        listItems.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            if (term === '' || text.includes(term)) {
+                item.style.display = 'block';
+                if (term) {
+                    item.style.background = '#fff9e6';
                 } else {
-                    item.style.display = 'none';
+                    item.style.background = '';
                 }
-            });
+            } else {
+                item.style.display = 'none';
+            }
         });
     }
 
-    // 初始化搜索功能
-    setupSearch();
-
-    // 6. 主题切换功能
-    function setupThemeToggle() {
-        const themeButton = document.createElement('button');
-        themeButton.innerHTML = '🌙 切换主题';
-        themeButton.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 10px 15px;
-            background: rgba(255,255,255,0.2);
-            border: none;
-            border-radius: 20px;
-            color: white;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
-            z-index: 1000;
-        `;
-
-        document.body.appendChild(themeButton);
-
-        themeButton.addEventListener('click', function() {
-            document.body.classList.toggle('dark-theme');
-            this.innerHTML = document.body.classList.contains('dark-theme') ? '☀️ 亮色主题' : '🌙 暗色主题';
-        });
-    }
-
-    // 暗色主题CSS
-    const darkThemeCSS = `
-        body.dark-theme {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: #ecf0f1;
-        }
-
-        body.dark-theme .stat-card,
-        body.dark-theme .section-card {
-            background: #34495e;
-            color: #ecf0f1;
-        }
-
-        body.dark-theme .book-item,
-        body.dark-theme .borrow-item {
-            background: #2c3e50;
-            color: #bdc3c7;
-        }
-    `;
-
-    // 添加暗色主题样式
-    const style = document.createElement('style');
-    style.textContent = darkThemeCSS;
-    document.head.appendChild(style);
-
-    // 初始化主题切换
-    setupThemeToggle();
-
-    // 7. 数据刷新模拟
-    function simulateDataRefresh() {
+    // 6. 自动刷新数据（可选功能）
+    function setupAutoRefresh() {
+        // 每5分钟刷新一次页面
         setInterval(() => {
-            const numbers = document.querySelectorAll('.stat-number');
-            numbers.forEach(numberEl => {
-                const current = parseInt(numberEl.textContent.replace(/,/g, '')) || 0;
-                const newValue = current + Math.floor(Math.random() * 10);
-                numberEl.textContent = newValue.toLocaleString();
-            });
-        }, 10000); // 每10秒刷新一次
+            if (confirm('数据已更新，是否刷新页面？')) {
+                window.location.reload();
+            }
+        }, 300000); // 5分钟
     }
 
-    // 开始模拟数据刷新
-    simulateDataRefresh();
+    // 7. 快速操作按钮效果
+    function setupActionButtons() {
+        const actionButtons = document.querySelectorAll('.action-btn');
+        actionButtons.forEach(button => {
+            button.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.05)';
+            });
+
+            button.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+            });
+        });
+    }
+
+    // 初始化所有功能
+    setupAuthButtons();
+    setupSearch();
+    setupActionButtons();
+    // setupAutoRefresh(); // 可选：取消注释启用自动刷新
+
+    console.log('所有功能初始化完成');
 });

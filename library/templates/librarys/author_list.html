@@ -1,0 +1,63 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作者列表 - 智慧图书馆系统</title>
+    <link rel="stylesheet" href="{% static 'librarys/visualization.css' %}">
+</head>
+<body>
+    <div class="container">
+        <nav class="navbar">
+            <div class="nav-brand">
+                <h1>智慧图书管理系统</h1>
+            </div>
+            <div class="nav-links">
+                <a href="{% url 'dashboard' %}" class="nav-link">首页</a>
+                <a href="{% url 'book_list' %}" class="nav-link">图书列表</a>
+                <a href="{% url 'author_list' %}" class="nav-link active">作者列表</a>
+                <a href="{% url 'borrow_records' %}" class="nav-link">借阅记录</a>
+            </div>
+            <div class="nav-auth">
+                <a href="#" class="btn btn-outline">登录</a>
+                <a href="#" class="btn btn-primary">注册</a>
+            </div>
+        </nav>
+
+        <div class="page-header">
+            <h2>作者列表</h2>
+            <span class="badge">{{ authors|length }} 位作者</span>
+        </div>
+
+        <div class="content-card">
+            <div class="card-content">
+                {% if authors %}
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>作者姓名</th>
+                                <th>作品数量</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for author in authors %}
+                            <tr>
+                                <td><strong>{{ author.name }}</strong></td>
+                                <td>{{ author.book_count }} 本</td>
+                                <td>
+                                    <button class="btn btn-sm">查看作品</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="empty-state">暂无作者数据</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

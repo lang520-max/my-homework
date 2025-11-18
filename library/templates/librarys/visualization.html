@@ -8,83 +8,181 @@
     <link rel="stylesheet" href="{% static 'librarys/visualization.css' %}">
 </head>
 <body>
-     <div class="container">
-        <header>
-            <h1>图书管理系统</h1>
+    <div class="container">
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <h1>智慧图书管理系统</h1>
+            </div>
+            <div class="nav-links">
+                <a href="{% url 'dashboard' %}" class="nav-link active">首页</a>
+                <a href="{% url 'book_management' %}" class="nav-link">图书管理</a>
+                <a href="{% url 'author_list' %}" class="nav-link">作者管理</a>
+                <a href="{% url 'borrow_records' %}" class="nav-link">借阅记录</a>
+            </div>
+            <div class="nav-auth">
+                <a href="#" class="btn btn-outline">登录</a>
+                <a href="#" class="btn btn-primary">注册</a>
+            </div>
+        </nav>
+
+        {% if error_message %}
+        <div class="error-message">
+            {{ error_message }}
+        </div>
+        {% endif %}
+
+        <!-- 欢迎区域 -->
+        <div class="welcome-section">
+            <h2>欢迎使用图书馆管理系统</h2>
             <p>高效管理您的图书馆藏与借阅记录</p>
-        </header>
-        
-        <!-- 统计信息卡片 -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <span class="stat-number">{{ total_books }}</span>
-                <span class="stat-label">总图书数量</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">{{ total_authors }}</span>
-                <span class="stat-label">作者数量</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">{{ total_categories }}</span>
-                <span class="stat-label">图书分类</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">{{ active_borrows }}</span>
-                <span class="stat-label">当前借阅</span>
+        </div>
+
+        <!-- 统计卡片区域 -->
+        <div class="stats-section">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_books|default:"0" }}</div>
+                    <div class="stat-label">总图书数量</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_authors|default:"0" }}</div>
+                    <div class="stat-label">作者数量</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_categories|default:"0" }}</div>
+                    <div class="stat-label">图书分类</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-number">{{ active_borrows|default:"0" }}</div>
+                    <div class="stat-label">当前借阅</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_users|default:"0" }}</div>
+                    <div class="stat-label">注册用户</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-number">{{ returned_borrows|default:"0" }}</div>
+                    <div class="stat-label">已归还</div>
+                </div>
             </div>
         </div>
-        
+
         <!-- 主要内容区域 -->
         <div class="content-section">
-            <!-- 最新图书 -->
-            <div class="section-card">
-                <h2>最新入库图书</h2>
-                {% if latest_books %}
-                    {% for book in latest_books %}
-                    <div class="book-item">
-                        <div class="book-title">{{ book.title }}</div>
-                        <div class="book-meta">
-                            作者: {{ book.author.name }} | 
-                            分类: {{ book.category.name }} | 
-                            出版社: {{ book.publisher.name }}
-                            {% if book.isbn %}| ISBN: {{ book.isbn }}{% endif %}
+            <div class="content-grid">
+                <!-- 左侧列 -->
+                <div class="content-column">
+                    <!-- 最新图书 -->
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3>最新入库图书</h3>
+                        </div>
+                        <div class="card-content">
+                            {% if latest_books %}
+                                {% for book in latest_books %}
+                                <div class="list-item">
+                                    <div class="item-title">{{ book.title }}</div>
+                                    <div class="item-details">
+                                        <span>作者: {{ book.author.name }}</span>
+                                        <span>分类: {{ book.category.name }}</span>
+                                        {% if book.publish_date %}
+                                        <span>出版日期: {{ book.publish_date|date:"Y-m-d" }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="empty-state">暂无图书数据</div>
+                            {% endif %}
                         </div>
                     </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-message">暂无图书数据</div>
-                {% endif %}
-            </div>
-            
-            <!-- 最近借阅 -->
-            <div class="section-card">
-                <h2>最近借阅记录</h2>
-                {% if recent_borrows %}
-                    {% for record in recent_borrows %}
-                    <div class="borrow-item">
-                        <div class="borrow-info">
-                            <div>
-                                <span class="user-name">{{ record.user.username }}</span>
-                                借阅了
-                                <span class="book-name">{{ record.book.title }}</span>
+
+                    <!-- 系统信息 -->
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3>系统信息</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="info-item">
+                                <span>数据更新时间:</span>
+                                <strong>{{ current_time|date:"Y-m-d H:i" }}</strong>
                             </div>
-                            <div class="date">{{ record.borrow_date|date:"Y-m-d" }}</div>
+                            <div class="info-item">
+                                <span>平均借阅时长:</span>
+                                <strong>{{ avg_borrow_days|default:"0" }} 天</strong>
+                            </div>
+                            <div class="info-item">
+                                <span>逾期未还:</span>
+                                <strong>{{ overdue_borrows|default:"0" }} 本</strong>
+                            </div>
                         </div>
-                        {% if record.due_date %}
-                        <div class="date">应还日期: {{ record.due_date|date:"Y-m-d" }}</div>
-                        {% endif %}
                     </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-message">暂无借阅记录</div>
-                {% endif %}
+                </div>
+
+                <!-- 右侧列 -->
+                <div class="content-column">
+                    <!-- 最近借阅 -->
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3>最近借阅记录</h3>
+                        </div>
+                        <div class="card-content">
+                            {% if recent_borrows %}
+                                {% for record in recent_borrows %}
+                                <div class="list-item {% if not record.return_date %}active{% endif %}">
+                                    <div class="item-main">
+                                        <strong>{{ record.user.username }}</strong>
+                                        借阅了
+                                        <strong>{{ record.book.title }}</strong>
+                                    </div>
+                                    <div class="item-details">
+                                        <span>借阅日期: {{ record.borrow_date|date:"m-d H:i" }}</span>
+                                        {% if record.due_date %}
+                                        <span>应还日期: {{ record.due_date|date:"m-d" }}</span>
+                                        {% endif %}
+                                        {% if record.return_date %}
+                                        <span class="status-returned">已归还</span>
+                                        {% else %}
+                                        <span class="status-borrowing">借阅中</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="empty-state">暂无借阅记录</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- 快速操作 -->
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3>快速操作</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="action-buttons">
+                                <a href="{% url 'book_management' %}" class="action-btn">管理图书</a>
+                                <a href="{% url 'author_list' %}" class="action-btn">管理作者</a>
+                                <a href="{% url 'borrow_records' %}" class="action-btn">查看借阅</a>
+                                <a href="#" class="action-btn">添加新书</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        
+
         <footer>
-            <p>图书管理系统 &copy; 2025 | 共管理 <span class="highlight">{{ total_books }}</span> 本图书</p>
+            <p>智慧图书馆管理系统 &copy; 2025</p>
         </footer>
     </div>
-    <script src="visualization.js"></script>
+
+    <script src="{% static 'librarys/visualization.js' %}"></script>
 </body>
 </html>
