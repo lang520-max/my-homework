@@ -5,8 +5,135 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
 from .models import Book, Author, Category, Publisher, User, BorrowRecord
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+import json
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def ajax_login(request):
+    """AJAX登录处理"""
+    try:
+        data = json.loads(request.body)
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+        remember_me = data.get('remember_me', False)
+
+        if not username or not password:
+            return JsonResponse({
+                'success': False,
+                'message': '请填写用户名和密码'
+            })
+
+        # 验证用户
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            login(request, user)
+            if not remember_me:
+                # 设置会话在浏览器关闭时过期
+                request.session.set_expiry(0)
+
+            return JsonResponse({
+                'success': True,
+                'message': f'欢迎回来，{user.username}！',
+                'username': user.username
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': '用户名或密码错误'
+            })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'登录失败: {str(e)}'
+        })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def ajax_register(request):
+    """AJAX注册处理"""
+    try:
+        data = json.loads(request.body)
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '').strip()
+        confirm_password = data.get('confirm_password', '').strip()
+
+        # 基本验证
+        if not all([username, email, password, confirm_password]):
+            return JsonResponse({
+                'success': False,
+                'message': '请填写所有必填字段'
+            })
+
+        if len(username) < 3:
+            return JsonResponse({
+                'success': False,
+                'message': '用户名至少需要3个字符'
+            })
+
+        if len(password) < 6:
+            return JsonResponse({
+                'success': False,
+                'message': '密码至少需要6个字符'
+            })
+
+        if password != confirm_password:
+            return JsonResponse({
+                'success': False,
+                'message': '两次输入的密码不一致'
+            })
+
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({
+                'success': False,
+                'message': '用户名已存在'
+            })
+
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({
+                'success': False,
+                'message': '邮箱已被注册'
+            })
+
+        # 创建用户
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password
+        )
+        user.save()
+
+        # 自动登录
+        login(request, user)
+
+        return JsonResponse({
+            'success': True,
+            'message': f'注册成功！欢迎 {username}',
+            'username': user.username
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'注册失败: {str(e)}'
+        })
+
+
+@require_http_methods(["POST"])
+def ajax_logout(request):
+    """AJAX登出处理"""
+    logout(request)
+    return JsonResponse({
+        'success': True,
+        'message': '已成功登出'
+    })
 def library_dashboard(request):
     """
     图书馆管理系统仪表盘视图
