@@ -20,8 +20,13 @@
                 <a href="{% url 'borrow_records' %}" class="nav-link active">借阅记录</a>
             </div>
             <div class="nav-auth">
-                <a href="#" class="btn btn-outline">登录</a>
-                <a href="#" class="btn btn-primary">注册</a>
+                {% if user.is_authenticated %}
+                    <span class="user-info">欢迎, {{ user.username }}</span>
+                    <a href="{% url 'user_logout' %}" class="btn btn-outline">退出</a>
+                {% else %}
+                    <a href="{% url 'user_login' %}" class="btn btn-outline">登录</a>
+                    <a href="{% url 'user_register' %}" class="btn btn-primary">注册</a>
+                {% endif %}
             </div>
         </nav>
 

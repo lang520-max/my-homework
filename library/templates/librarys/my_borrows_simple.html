@@ -1,0 +1,274 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的借阅 - 简易系统</title>
+    <style>
+        /* 使用与上面相同的CSS样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 1rem;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .borrow-item {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+
+        .borrow-item:hover {
+            border-color: #3498db;
+        }
+
+        .borrow-item.overdue {
+            border-left: 4px solid #e74c3c;
+            background: #fff5f5;
+        }
+
+        .borrow-item.current {
+            border-left: 4px solid #3498db;
+        }
+
+        .borrow-item.returned {
+            border-left: 4px solid #27ae60;
+            opacity: 0.7;
+        }
+
+        .book-title {
+            font-size: 1.2rem;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .book-meta {
+            color: #7f8c8d;
+            margin-bottom: 3px;
+        }
+
+        .book-actions {
+            margin-top: 10px;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #219a52;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📖 我的借阅记录</h1>
+            <p>用户: <strong>{{ current_user.username }}</strong></p>
+            <div class="nav-buttons">
+                <a href="{% url 'book_list_simple' %}" class="btn btn-primary">📚 继续借书</a>
+                <a href="{% url 'add_sample_data' %}" class="btn btn-secondary">➕ 添加示例数据</a>
+            </div>
+        </div>
+
+        <div class="content">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}info{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">{{ current_count }}</div>
+                    <div class="stat-label">当前借阅</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_count }}</div>
+                    <div class="stat-label">总借阅数</div>
+                </div>
+            </div>
+
+            <!-- 当前借阅 -->
+            <div class="section">
+                <h2 class="section-title">当前借阅 ({{ current_borrows|length }})</h2>
+
+                {% if current_borrows %}
+                    {% for record in current_borrows %}
+                    <div class="borrow-item {% if record.is_overdue %}overdue{% else %}current{% endif %}">
+                        <h3 class="book-title">{{ record.book.title }}</h3>
+                        <p class="book-meta"><strong>作者:</strong> {{ record.book.author.name }}</p>
+                        <p class="book-meta"><strong>借阅日期:</strong> {{ record.borrow_date|date:"Y-m-d H:i" }}</p>
+                        <p class="book-meta"><strong>应还日期:</strong> {{ record.due_date|date:"Y-m-d" }}</p>
+
+                        {% if record.is_overdue %}
+                        <p style="color: #e74c3c; font-weight: bold;">
+                            ⚠️ 逾期 {{ record.overdue_days }} 天
+                        </p>
+                        {% endif %}
+
+                        <div class="book-actions">
+                            <a href="{% url 'return_book_simple' record.id %}" class="btn btn-success"
+                               onclick="return confirm('确定要归还《{{ record.book.title }}》吗？')">
+                                📖 归还此书
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <h3>暂无借阅中的图书</h3>
+                        <p>去<a href="{% url 'book_list_simple' %}">图书借阅</a>页面借阅图书吧！</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- 借阅历史 -->
+            <div class="section">
+                <h2 class="section-title">最近归还记录</h2>
+
+                {% if borrow_history %}
+                    {% for record in borrow_history %}
+                    <div class="borrow-item returned">
+                        <h3 class="book-title">{{ record.book.title }}</h3>
+                        <p class="book-meta"><strong>作者:</strong> {{ record.book.author.name }}</p>
+                        <p class="book-meta"><strong>借阅日期:</strong> {{ record.borrow_date|date:"Y-m-d" }}</p>
+                        <p class="book-meta"><strong>归还日期:</strong> {{ record.return_date|date:"Y-m-d H:i" }}</p>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <p>暂无归还记录</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

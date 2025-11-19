@@ -24,10 +24,10 @@ class BookAdmin(admin.ModelAdmin):
     search_fields = ['title', 'isbn']
     ordering = ['title']
 
-@admin.register(User)
-class UserAdmin(admin.ModelAdmin):
-    list_display = ['username', 'email', 'id']
-    search_fields = ['username', 'email']
+# @admin.register(User)
+# class UserAdmin(admin.ModelAdmin):
+#     list_display = ['username', 'email', 'id']
+#     search_fields = ['username', 'email']
 
 @admin.register(BorrowRecord)
 class BorrowRecordAdmin(admin.ModelAdmin):

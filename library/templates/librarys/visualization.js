@@ -51,27 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 4. 登录注册按钮功能
-//    function setupAuthButtons() {
-//        const loginBtn = document.querySelector('.btn-outline');
-//        const registerBtn = document.querySelector('.btn-primary');
-//
-//        if (loginBtn) {
-//            loginBtn.addEventListener('click', function(e) {
-//                e.preventDefault();
-//                alert('登录功能开发中...');
-//            });
-//        }
-//
-//        if (registerBtn) {
-//            registerBtn.addEventListener('click', function(e) {
-//                e.preventDefault();
-//                alert('注册功能开发中...');
-//            });
-//        }
-//    }
-
-    // 5. 搜索功能（简化版）
+    // 4. 搜索功能（简化版）
     function setupSearch() {
         // 创建搜索框
         const searchHTML = `

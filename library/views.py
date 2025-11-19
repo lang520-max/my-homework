@@ -1,29 +1,207 @@
-from datetime import datetime, timedelta
+# library/views.py
+from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from django.contrib.auth.models import User as AuthUser
-from django.db.models import Count, Avg, Q
-from django.shortcuts import get_object_or_404
-from django.shortcuts import render, redirect
+from django.contrib.auth.models import User
+from django.db.models import Count, Q
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
-from .models import Book, Author, BorrowRecord, Category, Publisher
+from .models import Book, BorrowRecord, Author, Category, Publisher
 
 
-# 首页视图 - 重定向到仪表盘
+def borrow_book_simple(request, book_id):
+    """借书功能"""
+    if not request.user.is_authenticated:
+        messages.error(request, '请先登录')
+        return redirect('user_login')
+
+    book = get_object_or_404(Book, id=book_id)
+    current_user = request.user
+
+    # 检查是否已经借阅此书且未归还
+    existing_borrow = BorrowRecord.objects.filter(
+        user=current_user,
+        book=book,
+        return_date__isnull=True
+    ).exists()
+
+    if existing_borrow:
+        messages.error(request, f'您已经借阅了《{book.title}》，请先归还')
+        return redirect('my_borrows_simple')
+
+    # 计算应还日期（借期30天）
+    due_date = timezone.now() + timedelta(days=30)
+
+    # 创建借阅记录
+    BorrowRecord.objects.create(
+        user=current_user,
+        book=book,
+        due_date=due_date
+    )
+
+    messages.success(request, f'成功借阅《{book.title}》！应还日期：{due_date.strftime("%Y-%m-%d")}')
+    return redirect('my_borrows_simple')
+
+
+def return_book_simple(request, record_id):
+    """还书功能"""
+    if not request.user.is_authenticated:
+        messages.error(request, '请先登录')
+        return redirect('user_login')
+
+    borrow_record = get_object_or_404(BorrowRecord, id=record_id)
+
+    # 检查权限：用户只能归还自己的书
+    if borrow_record.user != request.user:
+        messages.error(request, '您没有权限归还此书')
+        return redirect('my_borrows_simple')
+
+    # 检查是否已归还
+    if borrow_record.return_date:
+        messages.error(request, '这本书已经归还过了')
+        return redirect('my_borrows_simple')
+
+    # 执行还书
+    borrow_record.return_date = timezone.now()
+    borrow_record.save()
+
+    # 检查是否逾期
+    if timezone.now() > borrow_record.due_date:
+        overdue_days = (timezone.now().date() - borrow_record.due_date.date()).days
+        messages.warning(request, f'归还成功！本书逾期 {overdue_days} 天')
+    else:
+        messages.success(request, f'成功归还《{borrow_record.book.title}》')
+
+    return redirect('my_borrows_simple')
+
+
+def book_list_simple(request):
+    """简化版图书列表"""
+    books = Book.objects.all().select_related('author', 'category', 'publisher')
+    current_user = request.user if request.user.is_authenticated else None
+
+    # 标记每本书的借阅状态
+    if current_user:
+        for book in books:
+            book.is_borrowed = BorrowRecord.objects.filter(
+                user=current_user,
+                book=book,
+                return_date__isnull=True
+            ).exists()
+    else:
+        for book in books:
+            book.is_borrowed = False
+
+    return render(request, 'librarys/book_list_simple.html', {
+        'books': books,
+        'current_user': current_user
+    })
+
+
+def my_borrows_simple(request):
+    """我的借阅页面"""
+    if not request.user.is_authenticated:
+        messages.info(request, '请先登录')
+        return redirect('user_login')
+
+    current_user = request.user
+
+    # 当前借阅（未归还）
+    current_borrows = BorrowRecord.objects.filter(
+        user=current_user,
+        return_date__isnull=True
+    ).select_related('book', 'book__author')
+
+    # 计算逾期状态
+    for record in current_borrows:
+        record.is_overdue = timezone.now() > record.due_date
+        if record.is_overdue:
+            record.overdue_days = (timezone.now().date() - record.due_date.date()).days
+
+    # 借阅历史（已归还，最近5条）
+    borrow_history = BorrowRecord.objects.filter(
+        user=current_user,
+        return_date__isnull=False
+    ).select_related('book', 'book__author').order_by('-return_date')[:5]
+
+    # 统计信息
+    current_count = current_borrows.count()
+    total_count = BorrowRecord.objects.filter(user=current_user).count()
+
+    return render(request, 'librarys/my_borrows_simple.html', {
+        'current_borrows': current_borrows,
+        'borrow_history': borrow_history,
+        'current_user': current_user,
+        'current_count': current_count,
+        'total_count': total_count
+    })
+
+
+def add_sample_data(request):
+    """添加示例数据（用于测试）"""
+    # 添加示例作者
+    author1, created = Author.objects.get_or_create(name="刘慈欣")
+    author2, created = Author.objects.get_or_create(name="J.K.罗琳")
+    author3, created = Author.objects.get_or_create(name="余华")
+
+    # 添加示例分类
+    category1, created = Category.objects.get_or_create(name="科幻")
+    category2, created = Category.objects.get_or_create(name="奇幻")
+    category3, created = Category.objects.get_or_create(name="文学")
+
+    # 添加示例出版社
+    publisher1, created = Publisher.objects.get_or_create(name="重庆出版社")
+    publisher2, created = Publisher.objects.get_or_create(name="人民文学出版社")
+    publisher3, created = Publisher.objects.get_or_create(name="作家出版社")
+
+    # 添加示例图书
+    books_data = [
+        {"title": "三体", "author": author1, "category": category1, "publisher": publisher1, "isbn": "9787229030933"},
+        {"title": "哈利波特与魔法石", "author": author2, "category": category2, "publisher": publisher2,
+         "isbn": "9787020033430"},
+        {"title": "活着", "author": author3, "category": category3, "publisher": publisher3, "isbn": "9787506365437"},
+        {"title": "流浪地球", "author": author1, "category": category1, "publisher": publisher1,
+         "isbn": "9787229112752"},
+        {"title": "球状闪电", "author": author1, "category": category1, "publisher": publisher1,
+         "isbn": "9787229102753"},
+    ]
+
+    for book_data in books_data:
+        Book.objects.get_or_create(
+            title=book_data["title"],
+            defaults={
+                'author': book_data["author"],
+                'category': book_data["category"],
+                'publisher': book_data["publisher"],
+                'isbn': book_data["isbn"],
+                'publish_date': timezone.now().date()
+            }
+        )
+
+    messages.success(request, '示例数据添加成功！')
+    return redirect('book_list_simple')
+
+
+# library/views.py
 def home(request):
-    """自动跳转到仪表盘或登录页面"""
+    """首页重定向"""
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        if request.user.is_staff or request.user.username == 'admin':
+            return redirect('dashboard')  # 使用新的名称
+        else:
+            return redirect('book_list_simple')
     else:
         return redirect('user_login')
 
 
-# 登录视图
 def user_login(request):
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        if request.user.is_staff or request.user.username == 'admin':
+            return redirect('dashboard')  # 使用新的名称
+        else:
+            return redirect('book_list_simple')
 
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -33,30 +211,41 @@ def user_login(request):
             user = authenticate(username=username, password=password)
             if user is not None:
                 login(request, user)
-                next_url = request.GET.get('next', 'dashboard')
-                return redirect(next_url)
+
+                if user.is_staff or user.username == 'admin':
+                    messages.success(request, f'欢迎回来，管理员 {user.username}')
+                    return redirect('dashboard')  # 使用新的名称
+                else:
+                    messages.success(request, f'欢迎回来，{user.username}')
+                    return redirect('book_list_simple')
+            else:
+                messages.error(request, '用户名或密码错误')
         else:
             messages.error(request, '用户名或密码错误')
     else:
         form = AuthenticationForm()
 
     return render(request, 'librarys/login.html', {'form': form})
-
-
 # 注册视图
 def user_register(request):
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        if request.user.is_staff or request.user.username == 'admin':
+            return redirect('library_dashboard')
+        else:
+            return redirect('book_list_simple')
 
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            # 新注册用户默认为普通用户（非管理员）
+            user.is_staff = False
+            user.save()
+
             login(request, user)
             messages.success(request, '注册成功！欢迎使用图书馆管理系统')
-            return redirect('dashboard')
+            return redirect('book_list_simple')
         else:
-            # 显示详细的表单错误
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f'{error}')
@@ -86,53 +275,36 @@ def library_dashboard(request):
         total_authors = Author.objects.count()
         total_categories = Category.objects.count()
         total_publishers = Publisher.objects.count()
-        total_users = AuthUser.objects.count()
+        total_users = User.objects.count()  # 使用Django内置User
 
         # 2. 借阅相关统计
-        # 当前借阅数量（未归还的）
         active_borrows = BorrowRecord.objects.filter(return_date__isnull=True).count()
-
-        # 已归还的借阅数量
         returned_borrows = BorrowRecord.objects.filter(return_date__isnull=False).count()
-
-        # 逾期未还的借阅数量
         overdue_borrows = BorrowRecord.objects.filter(
             return_date__isnull=True,
             due_date__lt=timezone.now()
         ).count()
 
-        # 3. 最新添加的图书（最近添加的5本）
-        latest_books = Book.objects.select_related(
-            'author', 'category', 'publisher'
-        ).order_by('-id')[:5]
+        # 3. 最新添加的图书
+        latest_books = Book.objects.select_related('author', 'category', 'publisher').order_by('-id')[:5]
 
-        # 4. 最近的借阅记录（最近5条未归还的借阅）
-        recent_borrows = BorrowRecord.objects.select_related(
-            'book', 'user', 'book__author'
-        ).filter(
+        # 4. 最近的借阅记录
+        recent_borrows = BorrowRecord.objects.select_related('book', 'user', 'book__author').filter(
             return_date__isnull=True
         ).order_by('-borrow_date')[:5]
 
-        # 5. 热门作者（拥有最多书籍的作者，前5名）
-        popular_authors = Author.objects.annotate(
-            book_count=Count('book')
-        ).order_by('-book_count')[:5]
+        # 5. 热门作者
+        popular_authors = Author.objects.annotate(book_count=Count('book')).order_by('-book_count')[:5]
 
-        # 6. 分类统计（每个分类的书籍数量）
-        category_stats = Category.objects.annotate(
-            book_count=Count('book')
-        ).order_by('-book_count')
+        # 6. 分类统计
+        category_stats = Category.objects.annotate(book_count=Count('book')).order_by('-book_count')
 
         # 7. 最近30天的借阅趋势
         thirty_days_ago = timezone.now() - timedelta(days=30)
-        recent_borrows_trend = BorrowRecord.objects.filter(
-            borrow_date__gte=thirty_days_ago
-        ).count()
+        recent_borrows_trend = BorrowRecord.objects.filter(borrow_date__gte=thirty_days_ago).count()
 
-        # 8. 平均借阅时长（已归还的书籍）
-        returned_records = BorrowRecord.objects.filter(
-            return_date__isnull=False
-        )
+        # 8. 平均借阅时长
+        returned_records = BorrowRecord.objects.filter(return_date__isnull=False)
         avg_borrow_days = 0
         if returned_records.exists():
             total_days = 0
@@ -142,38 +314,28 @@ def library_dashboard(request):
                     total_days += days
             avg_borrow_days = round(total_days / returned_records.count(), 1)
 
-        # 准备上下文数据
         context = {
-            # 基本统计
             'total_books': total_books,
             'total_authors': total_authors,
             'total_categories': total_categories,
             'total_publishers': total_publishers,
             'total_users': total_users,
-
-            # 借阅统计
             'active_borrows': active_borrows,
             'returned_borrows': returned_borrows,
             'overdue_borrows': overdue_borrows,
             'recent_borrows_trend': recent_borrows_trend,
             'avg_borrow_days': avg_borrow_days,
-
-            # 数据列表
             'latest_books': latest_books,
             'recent_borrows': recent_borrows,
             'popular_authors': popular_authors,
             'category_stats': category_stats,
-
-            # 当前时间（用于显示）
             'current_time': timezone.now(),
         }
 
         return render(request, 'librarys/visualization.html', context)
 
     except Exception as e:
-        # 错误处理：如果数据库查询出错，提供默认值
         print(f"视图错误: {e}")
-
         context = {
             'total_books': 0,
             'total_authors': 0,
@@ -195,7 +357,7 @@ def library_dashboard(request):
         return render(request, 'librarys/visualization.html', context)
 
 
-# 图书列表视图
+# 其他视图保持不变...
 @login_required
 def book_list(request):
     """图书列表视图"""
@@ -203,7 +365,6 @@ def book_list(request):
     return render(request, 'librarys/book_list.html', {'books': books})
 
 
-# 作者列表视图
 @login_required
 def author_list(request):
     """作者列表视图"""
@@ -211,7 +372,6 @@ def author_list(request):
     return render(request, 'librarys/author_list.html', {'authors': authors})
 
 
-# 借阅记录视图
 @login_required
 def borrow_records(request):
     """借阅记录视图"""
@@ -219,15 +379,12 @@ def borrow_records(request):
     return render(request, 'librarys/borrow_records.html', {'records': records})
 
 
-# 图书管理视图
 @login_required
 def book_management(request):
     """图书管理页面"""
-    # 获取所有图书
     books = Book.objects.select_related('author', 'category', 'publisher').all()
-
-    # 搜索功能
     search_query = request.GET.get('search', '')
+
     if search_query:
         books = books.filter(
             Q(title__icontains=search_query) |
@@ -235,12 +392,10 @@ def book_management(request):
             Q(isbn__icontains=search_query)
         )
 
-    # 分类筛选
     category_filter = request.GET.get('category', '')
     if category_filter:
         books = books.filter(category__name=category_filter)
 
-    # 获取所有分类用于筛选下拉菜单
     categories = Category.objects.all()
 
     context = {
@@ -252,13 +407,11 @@ def book_management(request):
     return render(request, 'librarys/book_management.html', context)
 
 
-# 添加图书视图
 @login_required
 def add_book(request):
     """添加新图书"""
     if request.method == 'POST':
         try:
-            # 获取表单数据
             title = request.POST.get('title')
             author_name = request.POST.get('author')
             category_name = request.POST.get('category')
@@ -266,12 +419,10 @@ def add_book(request):
             isbn = request.POST.get('isbn')
             publish_date = request.POST.get('publish_date')
 
-            # 获取或创建相关对象
             author, created = Author.objects.get_or_create(name=author_name)
             category, created = Category.objects.get_or_create(name=category_name)
             publisher, created = Publisher.objects.get_or_create(name=publisher_name)
 
-            # 创建图书
             Book.objects.create(
                 title=title,
                 author=author,
@@ -290,7 +441,6 @@ def add_book(request):
     return redirect('book_management')
 
 
-# 编辑图书视图
 @login_required
 def edit_book(request, book_id):
     """编辑图书信息"""
@@ -298,7 +448,6 @@ def edit_book(request, book_id):
 
     if request.method == 'POST':
         try:
-            # 获取表单数据
             book.title = request.POST.get('title')
             author_name = request.POST.get('author')
             category_name = request.POST.get('category')
@@ -306,7 +455,6 @@ def edit_book(request, book_id):
             book.isbn = request.POST.get('isbn')
             book.publish_date = request.POST.get('publish_date')
 
-            # 获取或创建相关对象
             book.author, created = Author.objects.get_or_create(name=author_name)
             book.category, created = Category.objects.get_or_create(name=category_name)
             book.publisher, created = Publisher.objects.get_or_create(name=publisher_name)
@@ -320,7 +468,6 @@ def edit_book(request, book_id):
     return redirect('book_management')
 
 
-# 删除图书视图
 @login_required
 def delete_book(request, book_id):
     """删除图书"""
