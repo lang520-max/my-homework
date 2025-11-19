@@ -1,139 +1,80 @@
-# library/views.py
-from django.shortcuts import render, redirect, get_object_or_404
+from datetime import datetime, timedelta
 from django.contrib import messages
-from django.db.models import Count, Q
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth.models import User as AuthUser
+from django.db.models import Count, Avg, Q
+from django.shortcuts import get_object_or_404
+from django.shortcuts import render, redirect
 from django.utils import timezone
-from datetime import timedelta
-from .models import Book, Author, Category, Publisher, User, BorrowRecord
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-import json
+from .models import Book, Author, BorrowRecord, Category, Publisher
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def ajax_login(request):
-    """AJAX登录处理"""
-    try:
-        data = json.loads(request.body)
-        username = data.get('username', '').strip()
-        password = data.get('password', '').strip()
-        remember_me = data.get('remember_me', False)
+# 首页视图 - 重定向到仪表盘
+def home(request):
+    """自动跳转到仪表盘或登录页面"""
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    else:
+        return redirect('user_login')
 
-        if not username or not password:
-            return JsonResponse({
-                'success': False,
-                'message': '请填写用户名和密码'
-            })
 
-        # 验证用户
-        user = authenticate(request, username=username, password=password)
+# 登录视图
+def user_login(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
 
-        if user is not None:
-            login(request, user)
-            if not remember_me:
-                # 设置会话在浏览器关闭时过期
-                request.session.set_expiry(0)
-
-            return JsonResponse({
-                'success': True,
-                'message': f'欢迎回来，{user.username}！',
-                'username': user.username
-            })
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(username=username, password=password)
+            if user is not None:
+                login(request, user)
+                next_url = request.GET.get('next', 'dashboard')
+                return redirect(next_url)
         else:
-            return JsonResponse({
-                'success': False,
-                'message': '用户名或密码错误'
-            })
+            messages.error(request, '用户名或密码错误')
+    else:
+        form = AuthenticationForm()
 
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': f'登录失败: {str(e)}'
-        })
+    return render(request, 'librarys/login.html', {'form': form})
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def ajax_register(request):
-    """AJAX注册处理"""
-    try:
-        data = json.loads(request.body)
-        username = data.get('username', '').strip()
-        email = data.get('email', '').strip()
-        password = data.get('password', '').strip()
-        confirm_password = data.get('confirm_password', '').strip()
+# 注册视图
+def user_register(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
 
-        # 基本验证
-        if not all([username, email, password, confirm_password]):
-            return JsonResponse({
-                'success': False,
-                'message': '请填写所有必填字段'
-            })
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, '注册成功！欢迎使用图书馆管理系统')
+            return redirect('dashboard')
+        else:
+            # 显示详细的表单错误
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{error}')
+    else:
+        form = UserCreationForm()
 
-        if len(username) < 3:
-            return JsonResponse({
-                'success': False,
-                'message': '用户名至少需要3个字符'
-            })
-
-        if len(password) < 6:
-            return JsonResponse({
-                'success': False,
-                'message': '密码至少需要6个字符'
-            })
-
-        if password != confirm_password:
-            return JsonResponse({
-                'success': False,
-                'message': '两次输入的密码不一致'
-            })
-
-        if User.objects.filter(username=username).exists():
-            return JsonResponse({
-                'success': False,
-                'message': '用户名已存在'
-            })
-
-        if User.objects.filter(email=email).exists():
-            return JsonResponse({
-                'success': False,
-                'message': '邮箱已被注册'
-            })
-
-        # 创建用户
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password
-        )
-        user.save()
-
-        # 自动登录
-        login(request, user)
-
-        return JsonResponse({
-            'success': True,
-            'message': f'注册成功！欢迎 {username}',
-            'username': user.username
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': f'注册失败: {str(e)}'
-        })
+    return render(request, 'librarys/register.html', {'form': form})
 
 
-@require_http_methods(["POST"])
-def ajax_logout(request):
-    """AJAX登出处理"""
+# 退出登录
+def user_logout(request):
     logout(request)
-    return JsonResponse({
-        'success': True,
-        'message': '已成功登出'
-    })
+    messages.info(request, '您已成功退出登录')
+    return redirect('user_login')
+
+
+# 仪表盘视图
+@login_required
 def library_dashboard(request):
     """
     图书馆管理系统仪表盘视图
@@ -145,7 +86,7 @@ def library_dashboard(request):
         total_authors = Author.objects.count()
         total_categories = Category.objects.count()
         total_publishers = Publisher.objects.count()
-        total_users = User.objects.count()
+        total_users = AuthUser.objects.count()
 
         # 2. 借阅相关统计
         # 当前借阅数量（未归还的）
@@ -254,24 +195,32 @@ def library_dashboard(request):
         return render(request, 'librarys/visualization.html', context)
 
 
+# 图书列表视图
+@login_required
 def book_list(request):
     """图书列表视图"""
     books = Book.objects.select_related('author', 'category', 'publisher').all()
     return render(request, 'librarys/book_list.html', {'books': books})
 
 
+# 作者列表视图
+@login_required
 def author_list(request):
-    """作者列表视图 - 修正了模板路径"""
+    """作者列表视图"""
     authors = Author.objects.annotate(book_count=Count('book')).all()
     return render(request, 'librarys/author_list.html', {'authors': authors})
 
 
+# 借阅记录视图
+@login_required
 def borrow_records(request):
     """借阅记录视图"""
     records = BorrowRecord.objects.select_related('book', 'user').all()
     return render(request, 'librarys/borrow_records.html', {'records': records})
 
 
+# 图书管理视图
+@login_required
 def book_management(request):
     """图书管理页面"""
     # 获取所有图书
@@ -303,6 +252,8 @@ def book_management(request):
     return render(request, 'librarys/book_management.html', context)
 
 
+# 添加图书视图
+@login_required
 def add_book(request):
     """添加新图书"""
     if request.method == 'POST':
@@ -339,6 +290,8 @@ def add_book(request):
     return redirect('book_management')
 
 
+# 编辑图书视图
+@login_required
 def edit_book(request, book_id):
     """编辑图书信息"""
     book = get_object_or_404(Book, id=book_id)
@@ -367,6 +320,8 @@ def edit_book(request, book_id):
     return redirect('book_management')
 
 
+# 删除图书视图
+@login_required
 def delete_book(request, book_id):
     """删除图书"""
     book = get_object_or_404(Book, id=book_id)

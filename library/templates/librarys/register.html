@@ -1,0 +1,332 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 智慧图书馆管理系统</title>
+    <link rel="stylesheet" href="{% static 'librarys/visualization.css' %}">
+    <style>
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+        }
+
+        .auth-card {
+            background: white;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .auth-logo {
+            font-size: 2rem;
+            color: #3498db;
+            margin-bottom: 1rem;
+        }
+
+        .auth-title {
+            font-size: 1.5rem;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-subtitle {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .password-requirements {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-top: 0.5rem;
+        }
+
+        .btn-auth {
+            width: 100%;
+            padding: 0.75rem;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn-auth:hover {
+            background: #2980b9;
+        }
+
+        .auth-links {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #ecf0f1;
+        }
+
+        .auth-link {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .auth-link:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: #ffeaa7;
+            color: #d63031;
+            padding: 0.75rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #d63031;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 0.75rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #155724;
+        }
+
+        .form-errors {
+            background: #ffeaa7;
+            color: #d63031;
+            padding: 0.75rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #d63031;
+            font-size: 0.9rem;
+        }
+
+        .password-strength {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .strength-bar {
+            height: 4px;
+            flex-grow: 1;
+            margin-left: 0.5rem;
+            background: #ecf0f1;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .strength-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s, background-color 0.3s;
+        }
+
+        .strength-weak { background-color: #e74c3c; width: 33%; }
+        .strength-medium { background-color: #f39c12; width: 66%; }
+        .strength-strong { background-color: #27ae60; width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">📚</div>
+                <h2 class="auth-title">创建新账户</h2>
+                <p class="auth-subtitle">加入我们的图书馆管理系统</p>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="{% if message.tags == 'error' %}error-message{% elif message.tags == 'success' %}success-message{% else %}info-message{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {% if form.errors %}
+                <div class="form-errors">
+                    {% for field, errors in form.errors.items %}
+                        {% for error in errors %}
+                            {{ error }}
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label class="form-label" for="username">用户名</label>
+                    <input type="text" id="username" name="username" class="form-input"
+                           placeholder="请输入用户名" required value="{{ form.username.value|default:'' }}">
+                    {% if form.username.errors %}
+                        <div class="password-requirements" style="color: #e74c3c;">
+                            {% for error in form.username.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password1">密码</label>
+                    <input type="password" id="password1" name="password1" class="form-input" placeholder="请输入密码" required>
+                    <div class="password-requirements">
+                        密码至少包含6个字符
+                    </div>
+                    <div class="password-strength">
+                        <span>密码强度:</span>
+                        <div class="strength-bar">
+                            <div class="strength-fill" id="strengthFill"></div>
+                        </div>
+                    </div>
+                    {% if form.password1.errors %}
+                        <div class="password-requirements" style="color: #e74c3c;">
+                            {% for error in form.password1.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password2">确认密码</label>
+                    <input type="password" id="password2" name="password2" class="form-input" placeholder="请再次输入密码" required>
+                    {% if form.password2.errors %}
+                        <div class="password-requirements" style="color: #e74c3c;">
+                            {% for error in form.password2.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <button type="submit" class="btn-auth">注册</button>
+            </form>
+
+            <div class="auth-links">
+                <p>已有账户？ <a href="{% url 'user_login' %}" class="auth-link">立即登录</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 密码验证 - 简化要求
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value.trim();
+            const password1 = document.getElementById('password1').value;
+            const password2 = document.getElementById('password2').value;
+
+            if (!username) {
+                e.preventDefault();
+                alert('请输入用户名');
+                return false;
+            }
+
+            // 简化密码要求：只需6个字符
+            if (password1.length < 6) {
+                e.preventDefault();
+                alert('密码长度至少6位');
+                return false;
+            }
+
+            if (password1 !== password2) {
+                e.preventDefault();
+                alert('两次输入的密码不一致');
+                return false;
+            }
+
+            // 移除不能全是数字的限制
+            // if (/^\d+$/.test(password1)) {
+            //     e.preventDefault();
+            //     alert('密码不能全是数字');
+            //     return false;
+            // }
+        });
+
+        // 实时密码强度检查 - 简化版本
+        document.getElementById('password1').addEventListener('input', function() {
+            const password = this.value;
+            const requirements = this.nextElementSibling;
+            const strengthFill = document.getElementById('strengthFill');
+
+            // 简化密码强度判断
+            let strength = 'weak';
+            let strengthText = '弱';
+
+            if (password.length >= 10) {
+                strength = 'strong';
+                strengthText = '强';
+            } else if (password.length >= 6) {
+                strength = 'medium';
+                strengthText = '中';
+            }
+
+            // 更新强度显示
+            strengthFill.className = 'strength-fill strength-' + strength;
+            requirements.textContent = `密码强度: ${strengthText} (${password.length}/6+)`;
+
+            // 颜色提示
+            if (password.length >= 6) {
+                requirements.style.color = '#27ae60';
+            } else {
+                requirements.style.color = '#e74c3c';
+            }
+        });
+
+        // 确认密码实时检查
+        document.getElementById('password2').addEventListener('input', function() {
+            const password1 = document.getElementById('password1').value;
+            const password2 = this.value;
+
+            if (password2 && password1 !== password2) {
+                this.style.borderColor = '#e74c3c';
+            } else if (password2) {
+                this.style.borderColor = '#27ae60';
+            } else {
+                this.style.borderColor = '#ecf0f1';
+            }
+        });
+    </script>
+</body>
+</html>
