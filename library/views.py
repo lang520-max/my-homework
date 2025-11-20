@@ -1,4 +1,3 @@
-# library/views.py
 from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -11,18 +10,139 @@ from django.utils import timezone
 from .models import Book, BorrowRecord, Author, Category, Publisher
 
 
-def borrow_book_simple(request, book_id):
-    """借书功能"""
-    if not request.user.is_authenticated:
-        messages.error(request, '请先登录')
+def home(request):
+    """首页 - 根据认证状态重定向"""
+    if request.user.is_authenticated:
+        if request.user.is_staff:  # 管理员进入仪表盘
+            return redirect('dashboard')
+        else:  # 普通用户进入图书列表
+            return redirect('book_list_simple')
+    else:  # 未登录用户进入登录页面
         return redirect('user_login')
 
+
+def user_login(request):
+    """用户登录"""
+    # 如果用户已登录，直接重定向到相应页面
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect('dashboard')
+        else:
+            return redirect('book_list_simple')
+
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(username=username, password=password)
+            if user is not None:
+                login(request, user)
+
+                # 根据用户类型重定向到不同页面
+                if user.is_staff:
+                    messages.success(request, f'欢迎回来，管理员 {user.username}')
+                    return redirect('dashboard')
+                else:
+                    messages.success(request, f'欢迎回来，{user.username}')
+                    return redirect('book_list_simple')
+            else:
+                messages.error(request, '用户名或密码错误')
+        else:
+            messages.error(request, '用户名或密码错误')
+    else:
+        form = AuthenticationForm()
+
+    return render(request, 'librarys/login.html', {'form': form})
+
+
+def user_register(request):
+    """用户注册"""
+    # 如果用户已登录，直接重定向
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect('dashboard')
+        else:
+            return redirect('book_list_simple')
+
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            # 新注册用户默认为普通用户
+            user.is_staff = False
+            user.save()
+
+            # 自动登录
+            login(request, user)
+            messages.success(request, '注册成功！欢迎使用图书馆管理系统')
+            return redirect('book_list_simple')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{error}')
+    else:
+        form = UserCreationForm()
+
+    return render(request, 'librarys/register.html', {'form': form})
+
+
+def user_logout(request):
+    """用户退出登录"""
+    logout(request)
+    messages.info(request, '您已成功退出登录')
+    return redirect('user_login')
+
+
+@login_required
+def book_list_simple(request):
+    """简化版图书列表 - 普通用户界面"""
+    books = Book.objects.all().select_related('author', 'category', 'publisher')
+
+    # 标记每本书的借阅状态
+    for book in books:
+        book.is_borrowed = BorrowRecord.objects.filter(
+            user=request.user,
+            book=book,
+            return_date__isnull=True
+        ).exists()
+
+    # 获取当前用户的借阅统计
+    current_borrows = BorrowRecord.objects.filter(
+        user=request.user,
+        return_date__isnull=True
+    )
+    borrow_history = BorrowRecord.objects.filter(
+        user=request.user,
+        return_date__isnull=False
+    ).order_by('-return_date')[:5]
+
+    # 计算逾期状态
+    for record in current_borrows:
+        record.is_overdue = timezone.now() > record.due_date
+        if record.is_overdue:
+            record.overdue_days = (timezone.now().date() - record.due_date.date()).days
+
+    context = {
+        'books': books,
+        'current_user': request.user,
+        'current_borrows': current_borrows,
+        'borrow_history': borrow_history,
+        'current_count': current_borrows.count(),
+        'total_count': BorrowRecord.objects.filter(user=request.user).count(),
+    }
+
+    return render(request, 'librarys/book_list_simple.html', context)
+
+
+@login_required
+def borrow_book_simple(request, book_id):
+    """借书功能"""
     book = get_object_or_404(Book, id=book_id)
-    current_user = request.user
 
     # 检查是否已经借阅此书且未归还
     existing_borrow = BorrowRecord.objects.filter(
-        user=current_user,
+        user=request.user,
         book=book,
         return_date__isnull=True
     ).exists()
@@ -36,27 +156,25 @@ def borrow_book_simple(request, book_id):
 
     # 创建借阅记录
     BorrowRecord.objects.create(
-        user=current_user,
+        user=request.user,
         book=book,
+        borrow_date=timezone.now(),
         due_date=due_date
     )
 
     messages.success(request, f'成功借阅《{book.title}》！应还日期：{due_date.strftime("%Y-%m-%d")}')
-    return redirect('my_borrows_simple')
+    return redirect('book_list_simple')
 
 
+@login_required
 def return_book_simple(request, record_id):
     """还书功能"""
-    if not request.user.is_authenticated:
-        messages.error(request, '请先登录')
-        return redirect('user_login')
-
     borrow_record = get_object_or_404(BorrowRecord, id=record_id)
 
     # 检查权限：用户只能归还自己的书
     if borrow_record.user != request.user:
         messages.error(request, '您没有权限归还此书')
-        return redirect('my_borrows_simple')
+        return redirect('book_list_simple')
 
     # 检查是否已归还
     if borrow_record.return_date:
@@ -77,40 +195,12 @@ def return_book_simple(request, record_id):
     return redirect('my_borrows_simple')
 
 
-def book_list_simple(request):
-    """简化版图书列表"""
-    books = Book.objects.all().select_related('author', 'category', 'publisher')
-    current_user = request.user if request.user.is_authenticated else None
-
-    # 标记每本书的借阅状态
-    if current_user:
-        for book in books:
-            book.is_borrowed = BorrowRecord.objects.filter(
-                user=current_user,
-                book=book,
-                return_date__isnull=True
-            ).exists()
-    else:
-        for book in books:
-            book.is_borrowed = False
-
-    return render(request, 'librarys/book_list_simple.html', {
-        'books': books,
-        'current_user': current_user
-    })
-
-
+@login_required
 def my_borrows_simple(request):
     """我的借阅页面"""
-    if not request.user.is_authenticated:
-        messages.info(request, '请先登录')
-        return redirect('user_login')
-
-    current_user = request.user
-
     # 当前借阅（未归还）
     current_borrows = BorrowRecord.objects.filter(
-        user=current_user,
+        user=request.user,
         return_date__isnull=True
     ).select_related('book', 'book__author')
 
@@ -122,18 +212,18 @@ def my_borrows_simple(request):
 
     # 借阅历史（已归还，最近5条）
     borrow_history = BorrowRecord.objects.filter(
-        user=current_user,
+        user=request.user,
         return_date__isnull=False
     ).select_related('book', 'book__author').order_by('-return_date')[:5]
 
     # 统计信息
     current_count = current_borrows.count()
-    total_count = BorrowRecord.objects.filter(user=current_user).count()
+    total_count = BorrowRecord.objects.filter(user=request.user).count()
 
     return render(request, 'librarys/my_borrows_simple.html', {
         'current_borrows': current_borrows,
         'borrow_history': borrow_history,
-        'current_user': current_user,
+        'current_user': request.user,
         'current_count': current_count,
         'total_count': total_count
     })
@@ -184,98 +274,21 @@ def add_sample_data(request):
     return redirect('book_list_simple')
 
 
-# library/views.py
-def home(request):
-    """首页重定向"""
-    if request.user.is_authenticated:
-        if request.user.is_staff or request.user.username == 'admin':
-            return redirect('dashboard')  # 使用新的名称
-        else:
-            return redirect('book_list_simple')
-    else:
-        return redirect('user_login')
-
-
-def user_login(request):
-    if request.user.is_authenticated:
-        if request.user.is_staff or request.user.username == 'admin':
-            return redirect('dashboard')  # 使用新的名称
-        else:
-            return redirect('book_list_simple')
-
-    if request.method == 'POST':
-        form = AuthenticationForm(request, data=request.POST)
-        if form.is_valid():
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password')
-            user = authenticate(username=username, password=password)
-            if user is not None:
-                login(request, user)
-
-                if user.is_staff or user.username == 'admin':
-                    messages.success(request, f'欢迎回来，管理员 {user.username}')
-                    return redirect('dashboard')  # 使用新的名称
-                else:
-                    messages.success(request, f'欢迎回来，{user.username}')
-                    return redirect('book_list_simple')
-            else:
-                messages.error(request, '用户名或密码错误')
-        else:
-            messages.error(request, '用户名或密码错误')
-    else:
-        form = AuthenticationForm()
-
-    return render(request, 'librarys/login.html', {'form': form})
-# 注册视图
-def user_register(request):
-    if request.user.is_authenticated:
-        if request.user.is_staff or request.user.username == 'admin':
-            return redirect('library_dashboard')
-        else:
-            return redirect('book_list_simple')
-
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            # 新注册用户默认为普通用户（非管理员）
-            user.is_staff = False
-            user.save()
-
-            login(request, user)
-            messages.success(request, '注册成功！欢迎使用图书馆管理系统')
-            return redirect('book_list_simple')
-        else:
-            for field, errors in form.errors.items():
-                for error in errors:
-                    messages.error(request, f'{error}')
-    else:
-        form = UserCreationForm()
-
-    return render(request, 'librarys/register.html', {'form': form})
-
-
-# 退出登录
-def user_logout(request):
-    logout(request)
-    messages.info(request, '您已成功退出登录')
-    return redirect('user_login')
-
-
-# 仪表盘视图
 @login_required
-def library_dashboard(request):
-    """
-    图书馆管理系统仪表盘视图
-    展示各种统计信息和数据
-    """
+def dashboard(request):
+    """图书馆管理系统仪表盘视图 - 管理员界面"""
+    # 检查是否为管理员
+    if not request.user.is_staff:
+        messages.error(request, '您没有权限访问管理员界面')
+        return redirect('book_list_simple')
+
     try:
         # 1. 基本统计数据
         total_books = Book.objects.count()
         total_authors = Author.objects.count()
         total_categories = Category.objects.count()
         total_publishers = Publisher.objects.count()
-        total_users = User.objects.count()  # 使用Django内置User
+        total_users = User.objects.count()
 
         # 2. 借阅相关统计
         active_borrows = BorrowRecord.objects.filter(return_date__isnull=True).count()
@@ -335,7 +348,7 @@ def library_dashboard(request):
         return render(request, 'librarys/visualization.html', context)
 
     except Exception as e:
-        print(f"视图错误: {e}")
+        print(f"仪表盘视图错误: {e}")
         context = {
             'total_books': 0,
             'total_authors': 0,
@@ -357,31 +370,14 @@ def library_dashboard(request):
         return render(request, 'librarys/visualization.html', context)
 
 
-# 其他视图保持不变...
-@login_required
-def book_list(request):
-    """图书列表视图"""
-    books = Book.objects.select_related('author', 'category', 'publisher').all()
-    return render(request, 'librarys/book_list.html', {'books': books})
-
-
-@login_required
-def author_list(request):
-    """作者列表视图"""
-    authors = Author.objects.annotate(book_count=Count('book')).all()
-    return render(request, 'librarys/author_list.html', {'authors': authors})
-
-
-@login_required
-def borrow_records(request):
-    """借阅记录视图"""
-    records = BorrowRecord.objects.select_related('book', 'user').all()
-    return render(request, 'librarys/borrow_records.html', {'records': records})
-
-
+# 以下为管理员功能页面（需要管理员权限）
 @login_required
 def book_management(request):
-    """图书管理页面"""
+    """图书管理页面 - 管理员功能"""
+    if not request.user.is_staff:
+        messages.error(request, '您没有权限访问此页面')
+        return redirect('book_list_simple')
+
     books = Book.objects.select_related('author', 'category', 'publisher').all()
     search_query = request.GET.get('search', '')
 
@@ -408,8 +404,34 @@ def book_management(request):
 
 
 @login_required
+def author_list(request):
+    """作者列表视图 - 管理员功能"""
+    if not request.user.is_staff:
+        messages.error(request, '您没有权限访问此页面')
+        return redirect('book_list_simple')
+
+    authors = Author.objects.annotate(book_count=Count('book')).all()
+    return render(request, 'librarys/author_list.html', {'authors': authors})
+
+
+@login_required
+def borrow_records(request):
+    """借阅记录视图 - 管理员功能"""
+    if not request.user.is_staff:
+        messages.error(request, '您没有权限访问此页面')
+        return redirect('book_list_simple')
+
+    records = BorrowRecord.objects.select_related('book', 'user').all()
+    return render(request, 'librarys/borrow_records.html', {'records': records})
+
+
+@login_required
 def add_book(request):
-    """添加新图书"""
+    """添加新图书 - 管理员功能"""
+    if not request.user.is_staff:
+        messages.error(request, '您没有权限执行此操作')
+        return redirect('book_list_simple')
+
     if request.method == 'POST':
         try:
             title = request.POST.get('title')
@@ -443,7 +465,11 @@ def add_book(request):
 
 @login_required
 def edit_book(request, book_id):
-    """编辑图书信息"""
+    """编辑图书信息 - 管理员功能"""
+    if not request.user.is_staff:
+        messages.error(request, '您没有权限执行此操作')
+        return redirect('book_list_simple')
+
     book = get_object_or_404(Book, id=book_id)
 
     if request.method == 'POST':
@@ -470,7 +496,11 @@ def edit_book(request, book_id):
 
 @login_required
 def delete_book(request, book_id):
-    """删除图书"""
+    """删除图书 - 管理员功能"""
+    if not request.user.is_staff:
+        messages.error(request, '您没有权限执行此操作')
+        return redirect('book_list_simple')
+
     book = get_object_or_404(Book, id=book_id)
 
     if request.method == 'POST':

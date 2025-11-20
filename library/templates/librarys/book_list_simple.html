@@ -259,16 +259,22 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>📚 简易图书借阅系统</h1>
-            <div class="user-info">
-                {% if current_user %}
-                    当前用户: <strong>{{ current_user.username }}</strong>
-                {% else %}
-                    <span style="color: #e74c3c;">未设置用户，请先创建用户</span>
-                {% endif %}
-            </div>
-        </div>
+        <!-- 修改header部分的用户信息 -->
+<div class="header">
+    <h1>📚 简易图书借阅系统</h1>
+    <div class="user-info">
+        {% if current_user %}
+            当前用户: <strong>{{ current_user.username }}</strong>
+            <!-- 添加退出按钮 -->
+   <a href="{% url 'user_logout' %}" class="logout-btn"
+   onclick="return confirm('确定要退出登录吗？')">
+    🚪 退出
+</a>
+        {% else %}
+            <span style="color: #e74c3c;">未设置用户，请先创建用户</span>
+        {% endif %}
+    </div>
+</div>
 
         <div class="nav-tabs">
             <button class="nav-tab active" onclick="showTab('books')">图书借阅</button>

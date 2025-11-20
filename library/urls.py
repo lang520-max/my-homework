@@ -1,4 +1,3 @@
-# library/urls.py
 from django.urls import path
 from . import views
 
@@ -9,8 +8,8 @@ urlpatterns = [
     path('register/', views.user_register, name='user_register'),
     path('logout/', views.user_logout, name='user_logout'),
 
-    # 管理员仪表盘 - 使用不同的路径前缀，避免与Django admin冲突
-    path('library/dashboard/', views.library_dashboard, name='dashboard'),
+    # 管理员仪表盘
+    path('dashboard/', views.dashboard, name='dashboard'),
 
     # 管理员功能
     path('library/books/', views.book_management, name='book_management'),
