@@ -96,13 +96,20 @@ def user_logout(request):
 
 @login_required
 def book_list_simple(request):
-    """简化版图书列表 - 普通用户界面"""
+    """简化版图书列表 - 添加全局借阅状态"""
     books = Book.objects.all().select_related('author', 'category', 'publisher')
 
-    # 标记每本书的借阅状态
+    # 为每本书标记借阅状态
     for book in books:
-        book.is_borrowed = BorrowRecord.objects.filter(
+        # 检查当前用户是否已借阅此书
+        book.is_borrowed_by_current_user = BorrowRecord.objects.filter(
             user=request.user,
+            book=book,
+            return_date__isnull=True
+        ).exists()
+
+        # 检查图书是否被任何人借阅（未归还）
+        book.is_borrowed_by_anyone = BorrowRecord.objects.filter(
             book=book,
             return_date__isnull=True
         ).exists()
@@ -133,7 +140,6 @@ def book_list_simple(request):
     }
 
     return render(request, 'librarys/book_list_simple.html', context)
-
 
 @login_required
 def borrow_book_simple(request, book_id):
@@ -512,3 +518,57 @@ def delete_book(request, book_id):
             messages.error(request, f'删除图书失败: {str(e)}')
 
     return redirect('book_management')
+
+@login_required
+def borrow_book_simple(request, book_id):
+    """借书功能 - 添加全局图书可用性检查"""
+    try:
+        # 1. 获取当前用户
+        current_user = request.user
+
+        # 2. 验证用户有效性
+        if not current_user or not current_user.id:
+            messages.error(request, '用户会话无效，请重新登录')
+            request.session.flush()
+            return redirect('user_login')
+
+        # 3. 获取图书
+        book = get_object_or_404(Book, id=book_id)
+
+        # 4. 检查当前用户是否已经借阅此书且未归还
+        existing_borrow = BorrowRecord.objects.filter(
+            user=current_user,
+            book=book,
+            return_date__isnull=True
+        ).exists()
+
+        if existing_borrow:
+            messages.error(request, f'您已经借阅了《{book.title}》，请先归还')
+            return redirect('my_borrows_simple')
+
+        # 5. 新增：检查图书是否已被其他人借阅且未归还
+        book_is_borrowed = BorrowRecord.objects.filter(
+            book=book,
+            return_date__isnull=True
+        ).exclude(user=current_user).exists()  # 排除当前用户自己的借阅记录
+
+        if book_is_borrowed:
+            messages.error(request, f'《{book.title}》已被其他人借阅，暂时不可借')
+            return redirect('book_list_simple')
+
+        # 6. 计算应还日期
+        due_date = timezone.now() + timedelta(days=30)
+
+        # 7. 创建借阅记录
+        BorrowRecord.objects.create(
+            user=current_user,
+            book=book,
+            due_date=due_date
+        )
+
+        messages.success(request, f'成功借阅《{book.title}》！应还日期：{due_date.strftime("%Y-%m-%d")}')
+        return redirect('book_list_simple')
+
+    except Exception as e:
+        messages.error(request, f'借书失败: {str(e)}')
+        return redirect('book_list_simple')

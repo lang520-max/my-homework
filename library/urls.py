@@ -1,3 +1,4 @@
+# library/urls.py
 from django.urls import path
 from . import views
 
@@ -7,11 +8,11 @@ urlpatterns = [
     path('login/', views.user_login, name='user_login'),
     path('register/', views.user_register, name='user_register'),
     path('logout/', views.user_logout, name='user_logout'),
-
     # 管理员仪表盘
     path('dashboard/', views.dashboard, name='dashboard'),
 
     # 管理员功能
+    path('library/dashboard/', views.dashboard, name='dashboard'),
     path('library/books/', views.book_management, name='book_management'),
     path('library/authors/', views.author_list, name='author_list'),
     path('library/borrows/', views.borrow_records, name='borrow_records'),
